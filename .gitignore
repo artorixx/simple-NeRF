@@ -5,7 +5,7 @@
 *.npy
 *.npz
 *.dae
-data/*
-runs
-!runs/**/*.yaml
-!data/blender/render.py
+/data
+/runs
+!/runs/**/*.yaml
+!/data/blender/render.py
