@@ -7,5 +7,6 @@
 *.dae
 /data/*
 /runs/*
+!/runs/**/
+/runs/**/
 !/runs/**/*.yaml
-!/data/blender/render.py
