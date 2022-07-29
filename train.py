@@ -27,7 +27,11 @@ if __name__ == '__main__':
     input_origins=torch.from_numpy(blender_data['input_origins'].astype(np.float32)).clone()
     input_rays=torch.from_numpy(blender_data['input_rays'].astype(np.float32)).clone()
     # lr
-    lr_scheduler = LrScheduler()
+    peak_lr=cfg['training']['peak_lr']
+    peak_it=cfg['training']['peak_it']
+    decay_rate=cfg['training']['decay_rate']
+    decay_it=cfg['training']['decay_it']
+    lr_scheduler = LrScheduler(peak_lr=peak_lr, peak_it=peak_it, decay_rate=decay_rate, decay_it=decay_it)
     model=ObjNeRF(cfg["model"]).to(device)
     if world_size > 1:
         model.fine_nerf = DistributedDataParallel(model.fine_nerf, device_ids=[rank], output_device=rank)
@@ -71,8 +75,8 @@ if __name__ == '__main__':
             input_ray=input_rays[img_i]
             input_origin=input_origins[img_i]
             H,W,D=input_ray.shape
-            if it < cfg['precrop_iters']:
-                iH,iW=focus_sample(H,W,cfg['precrop_frac'],ray_size)
+            if it < cfg['training']['precrop_iters']:
+                iH,iW=focus_sample(H,W,cfg['training']['precrop_frac'],ray_size)
             else:
                 iH,iW=defocus_sample(H,W,ray_size)
             input_origin = input_origin[iH, iW]  # (N_rand, 3)

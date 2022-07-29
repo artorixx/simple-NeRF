@@ -34,13 +34,13 @@ class ObjNeRFTrainer:
         near=2.
         far=6.
         input_dirs = input_rays / torch.norm(input_rays, dim=-1, keepdim=True)  # (B,3)
-        pts, z_vals=self.coarse_sampling(input_origins,input_rays,near,far,self.config["N_coarse_samples"],train,pytest)
+        pts, z_vals=self.coarse_sampling(input_origins,input_rays,near,far,self.config["training"]["N_coarse_samples"],train,pytest)
 
         rgb, alpha=self.model.coarse_nerf(pts,input_dirs)  # (B,N_coarse_samples,3) (B,N_coarse_samples,1)
         coarse_rgb_map, weights=self.volume_rendering(rgb,alpha,input_rays,z_vals,white_bkgd,raw_noise_std,pytest)
         # z sampling
         z_vals=0.5 * (z_vals[:,1:] + z_vals[:,:-1])
-        pts,z_vals = self.fine_sampling(input_origins,input_rays,z_vals, weights[:,1:-1,0], self.config['N_fine_samples'], pytest,train) # (B, N_fine_samples)
+        pts,z_vals = self.fine_sampling(input_origins,input_rays,z_vals, weights[:,1:-1,0], self.config['training']['N_fine_samples'], pytest,train) # (B, N_fine_samples)
         pts,z_vals = pts.detach(), z_vals.detach()
         rgb, alpha=self.model.fine_nerf(pts,input_dirs)  # (B,N_fine_samples,3) (B,N_fine_samples,1)
 
@@ -175,12 +175,12 @@ class ObjNeRFTrainer:
         near=2.
         far=6.
         dirs = rays / torch.norm(rays, dim=-1, keepdim=True)  # (B,3)
-        pts,z_vals=self.coarse_sampling(origins,rays,near,far,self.config['N_coarse_samples'],False,True)
+        pts,z_vals=self.coarse_sampling(origins,rays,near,far,self.config['training']['N_coarse_samples'],False,True)
         rgb, alpha=self.model.coarse_nerf(pts,dirs)  # (B,N_coarse_samples,3) (B,N_coarse_samples,1)
         # raw2outputs
         _,weights=self.volume_rendering(rgb,alpha,rays,z_vals,white_bkgd,False,True)
         z_vals=0.5 * (z_vals[:,1:] + z_vals[:,:-1])
-        pts,z_vals = self.fine_sampling(origins, rays, z_vals, weights[:,1:-1,0], self.config['N_fine_samples'], True, False) # (B, N_fine_samples)
+        pts,z_vals = self.fine_sampling(origins, rays, z_vals, weights[:,1:-1,0], self.config['training']['N_fine_samples'], True, False) # (B, N_fine_samples)
         pts,z_vals = pts.detach(), z_vals.detach()
         rgb, alpha=self.model.fine_nerf(pts,dirs)  # (B,N_fine_samples,3) (B,N_fine_samples,1)
         # raw2outputs
