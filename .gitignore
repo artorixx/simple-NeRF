@@ -5,8 +5,5 @@
 *.npy
 *.npz
 *.dae
+*.pt
 /data/*
-/runs/*
-!/runs/**/
-/runs/**/
-!/runs/**/*.yaml
