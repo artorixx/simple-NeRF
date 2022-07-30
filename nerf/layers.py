@@ -66,15 +66,3 @@ class NeRF(nn.Module):
             h = F.relu(h)
         rgb = self.rgb_linear(h)
         return rgb, alpha
-
-class ObjEmbedding(nn.Module):
-    def __init__(self,num_obj):
-        super().__init__()
-        self.num_obj=num_obj
-        self.embedding=nn.Embedding(num_obj,3)
-
-    def forward(self):
-        obj_idx=torch.arange(0,self.num_obj)
-        obj_origins=self.embedding(obj_idx)
-        N,D=obj_origins.shape
-        return obj_origins

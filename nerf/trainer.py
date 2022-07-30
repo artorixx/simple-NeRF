@@ -7,7 +7,7 @@ import imageio
 from tqdm import tqdm
 import os
 
-class ObjNeRFTrainer:
+class NeRFTrainer:
     def __init__(self,model,optimizer,cfg,device,out_dir):
         self.model=model
         self.optimizer = optimizer
@@ -23,34 +23,43 @@ class ObjNeRFTrainer:
         self.optimizer.step()
         return loss.item()
 
-    def compute_loss(self,data,pytest=False,raw_noise_std=0,train=True,white_bkgd=True):
+    def compute_loss(self,data,raw_noise_std=0,pytest=False,train=True,white_bkgd=True):
         device=self.device
         loss=0.
 
         target_pixels=data.get('target_pixels').to(device)  # (B,3)
         input_origins=data.get('input_origins').to(device)  # (B,3)
         input_rays=data.get('input_rays').to(device)        # (B,3)
-        B,_=target_pixels.shape
-        near=2.
-        far=6.
-        input_dirs = input_rays / torch.norm(input_rays, dim=-1, keepdim=True)  # (B,3)
-        pts, z_vals=self.coarse_sampling(input_origins,input_rays,near,far,self.config["training"]["N_coarse_samples"],train,pytest)
-
-        rgb, alpha=self.model.coarse_nerf(pts,input_dirs)  # (B,N_coarse_samples,3) (B,N_coarse_samples,1)
-        coarse_rgb_map, weights=self.volume_rendering(rgb,alpha,input_rays,z_vals,white_bkgd,raw_noise_std,pytest)
-        # z sampling
-        z_vals=0.5 * (z_vals[:,1:] + z_vals[:,:-1])
-        pts,z_vals = self.fine_sampling(input_origins,input_rays,z_vals, weights[:,1:-1,0], self.config['training']['N_fine_samples'], pytest,train) # (B, N_fine_samples)
-        pts,z_vals = pts.detach(), z_vals.detach()
-        rgb, alpha=self.model.fine_nerf(pts,input_dirs)  # (B,N_fine_samples,3) (B,N_fine_samples,1)
-
-        # raw2outputs
-        fine_rgb_map,_=self.volume_rendering(rgb,alpha,input_rays,z_vals,white_bkgd,raw_noise_std,pytest)
+        render_result=self.render(input_origins,input_rays,white_bkgd,raw_noise_std,pytest,train)
+        coarse_rgb_map=render_result['coarse_rgb_map']
+        fine_rgb_map=render_result['fine_rgb_map']
 
         coarse_mse_loss=torch.mean((coarse_rgb_map - target_pixels) ** 2)
         fine_mse_loss=torch.mean((fine_rgb_map - target_pixels) ** 2)
         loss+=coarse_mse_loss+fine_mse_loss
         return loss
+
+    def visualize(self,demo_origins,demo_rays,chunk=512,raw_noise_std=0,pytest=True,train=False,white_bkgd=True):
+        self.model.eval()
+        device=self.device
+        B,H,W,D=demo_origins.shape
+        demo_origins=demo_origins.reshape(B*H*W,3).to(device)
+        demo_rays=demo_rays.reshape(B*H*W,3).to(device)
+        fine_rgb_maps=[]
+        for C in tqdm(range(0, B*H*W, chunk)):
+            input_origins=demo_origins[C:C+chunk]
+            input_rays=demo_rays[C:C+chunk]
+            render_result=self.render(input_origins,input_rays,white_bkgd,raw_noise_std,pytest,train)
+            fine_rgb_map=render_result['fine_rgb_map']
+            fine_rgb_maps.append((255*np.clip(fine_rgb_map.detach().cpu().numpy(),0,1)).astype(np.uint8))
+        rgbs=np.concatenate(fine_rgb_maps,axis=0).reshape(B,H,W,3)
+        os.makedirs(os.path.join(self.out_dir,'demo'),exist_ok=True)
+        os.makedirs(os.path.join(self.out_dir,'demo/images'),exist_ok=True)
+        for i in range(rgbs.shape[0]):
+            filename = os.path.join(self.out_dir,'demo/images/', '{:03d}.png'.format(i))
+            imageio.imwrite(filename, rgbs[i])
+        imageio.mimwrite(os.path.join(self.out_dir,'demo/', 'video.mp4'), rgbs, fps=30, quality=8)
+        return
 
     def volume_rendering(self,rgb,alpha,input_rays,z_vals,white_bkgd,raw_noise_std,pytest):
         """
@@ -84,7 +93,7 @@ class ObjNeRFTrainer:
             rgb_map = rgb_map + (1.0-acc_map)
         return rgb_map, weights
 
-    def coarse_sampling(self, input_origins,input_rays,near,far,N_samples,train,pytest):
+    def coarse_sampling(self, input_origins,input_rays,near,far,N_samples,pytest,train):
         device=self.device
         B,D=input_origins.shape
         t_vals = torch.linspace(0., 1., steps=N_samples)
@@ -147,42 +156,26 @@ class ObjNeRFTrainer:
         pts = input_origins.unsqueeze(1) + input_rays.unsqueeze(1) * z_vals.unsqueeze(2) # (B, N_fine_samples, 3)
         return pts, z_vals
 
-    def visualize(self,demo_origins,demo_rays,chunk=512,white_bkgd=True):
-        self.model.eval()
-        device=self.device
-        B,H,W,D=demo_origins.shape
-        demo_origins=demo_origins.reshape(B*H*W,3).to(device)
-        demo_rays=demo_rays.reshape(B*H*W,3).to(device)
-        fine_rgb_maps=[]
-        for C in tqdm(range(0, B*H*W, chunk)):
-            input_origins=demo_origins[C:C+chunk]
-            input_rays=demo_rays[C:C+chunk]
-            fine_rgb_map=self.render(input_origins,input_rays)
-            fine_rgb_maps.append((255*np.clip(fine_rgb_map.detach().cpu().numpy(),0,1)).astype(np.uint8))
-        rgbs=np.concatenate(fine_rgb_maps,axis=0).reshape(B,H,W,3)
-        os.makedirs(os.path.join(self.out_dir,'demo'),exist_ok=True)
-        os.makedirs(os.path.join(self.out_dir,'demo/images'),exist_ok=True)
-        for i in range(rgbs.shape[0]):
-            filename = os.path.join(self.out_dir,'demo/images/', '{:03d}.png'.format(i))
-            imageio.imwrite(filename, rgbs[i])
-        imageio.mimwrite(os.path.join(self.out_dir,'demo/', 'video.mp4'), rgbs, fps=30, quality=8)
-        return
-
-    def render(self,origins,rays,white_bkgd=True):
-        device=self.device
-        origins=origins.to(device)
-        rays=rays.to(device)
+    def render(self,origins,rays,white_bkgd=True,raw_noise_std=False,pytest=True,train=True):
         near=2.
         far=6.
         dirs = rays / torch.norm(rays, dim=-1, keepdim=True)  # (B,3)
-        pts,z_vals=self.coarse_sampling(origins,rays,near,far,self.config['training']['N_coarse_samples'],False,True)
-        rgb, alpha=self.model.coarse_nerf(pts,dirs)  # (B,N_coarse_samples,3) (B,N_coarse_samples,1)
+        pts,z_vals=self.coarse_sampling(origins,rays,near,far,self.config['training']['N_coarse_samples'],pytest,train)
+        coarse_rgb, coarse_alpha=self.model.coarse_nerf(pts,dirs)  # (B,N_coarse_samples,3) (B,N_coarse_samples,1)
         # raw2outputs
-        _,weights=self.volume_rendering(rgb,alpha,rays,z_vals,white_bkgd,False,True)
+        coarse_rgb_map,coarse_weights=self.volume_rendering(coarse_rgb,coarse_alpha,rays,z_vals,white_bkgd,raw_noise_std,pytest)
         z_vals=0.5 * (z_vals[:,1:] + z_vals[:,:-1])
-        pts,z_vals = self.fine_sampling(origins, rays, z_vals, weights[:,1:-1,0], self.config['training']['N_fine_samples'], True, False) # (B, N_fine_samples)
+        pts,z_vals = self.fine_sampling(origins, rays, z_vals, coarse_weights[:,1:-1,0], self.config['training']['N_fine_samples'],pytest,train) # (B, N_fine_samples)
         pts,z_vals = pts.detach(), z_vals.detach()
-        rgb, alpha=self.model.fine_nerf(pts,dirs)  # (B,N_fine_samples,3) (B,N_fine_samples,1)
+        fine_rgb, fine_alpha=self.model.fine_nerf(pts,dirs)  # (B,N_fine_samples,3) (B,N_fine_samples,1)
         # raw2outputs
-        fine_rgb_map,_=self.volume_rendering(rgb,alpha,rays,z_vals,white_bkgd,False,True)
-        return fine_rgb_map
+        fine_rgb_map,_=self.volume_rendering(fine_rgb,fine_alpha,rays,z_vals,white_bkgd,False,True)
+        result={
+            'coarse_rgb': coarse_rgb,
+            'coarse_alpha': coarse_alpha,
+            'coarse_rgb_map': coarse_rgb_map,
+            'fine_rgb': fine_rgb,
+            'fine_alpha': fine_alpha,
+            'fine_rgb_map': fine_rgb_map
+        }
+        return result

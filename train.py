@@ -8,8 +8,8 @@ from nerf.data.blender import load_blender,focus_sample,defocus_sample
 from nerf.utils.common import init_ddp
 from nerf.checkpoint import Checkpoint
 from nerf.lr_scheduler import LrScheduler
-from nerf.trainer import ObjNeRFTrainer
-from nerf.model import ObjNeRF
+from nerf.trainer import NeRFTrainer
+from nerf.model import NeRFModel
 
 if __name__ == '__main__':
     config='runs/lego/config.yaml'
@@ -32,7 +32,7 @@ if __name__ == '__main__':
     decay_rate=cfg['training']['decay_rate']
     decay_it=cfg['training']['decay_it']
     lr_scheduler = LrScheduler(peak_lr=peak_lr, peak_it=peak_it, decay_rate=decay_rate, decay_it=decay_it)
-    model=ObjNeRF(cfg["model"]).to(device)
+    model=NeRFModel(cfg["model"]).to(device)
     if world_size > 1:
         model.fine_nerf = DistributedDataParallel(model.fine_nerf, device_ids=[rank], output_device=rank)
         model.coarse_nerf = DistributedDataParallel(model.coarse_nerf, device_ids=[rank], output_device=rank)
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     except RuntimeError:
         load_dict = dict()
         print("Faild loading")
-    trainer=ObjNeRFTrainer(model,optimizer,cfg,device,out_dir)
+    trainer=NeRFTrainer(model,optimizer,cfg,device,out_dir)
     # train
     epoch_it = load_dict.get('epoch_it', -1)
     it = load_dict.get('it', -1)

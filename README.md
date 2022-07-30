@@ -47,7 +47,7 @@ You can control the experiment setting by editing a config file.
 The following terms are arguments for config.  
 >`model` Hyperparameters for model  
 >`training` Arguments for training
->>`batch_size` How many images processed in an iteration
+>>`batch_size` How many images processed in an iteration  
 >`ray_size` How many rays processed in an iteration  
 >`peak_lr` Peak learning rate for learning rate scheduler  
 >`peak_it` Peak iteration for learning rate scheduler  

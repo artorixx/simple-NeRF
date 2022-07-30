@@ -8,8 +8,8 @@ from nerf.data.blender import load_demo
 from nerf.utils.common import init_ddp
 from nerf.checkpoint import Checkpoint
 from nerf.lr_scheduler import LrScheduler
-from nerf.trainer import ObjNeRFTrainer
-from nerf.model import ObjNeRF
+from nerf.trainer import NeRFTrainer
+from nerf.model import NeRFModel
 
 if __name__ == '__main__':
     config='runs/lego/config.yaml'
@@ -24,7 +24,7 @@ if __name__ == '__main__':
     demo_data=load_demo(os.path.join('data/',cfg['data']['dataset']),'train')
     demo_origins=torch.from_numpy(demo_data['demo_origins'].astype(np.float32)).clone()
     demo_rays=torch.from_numpy(demo_data['demo_rays'].astype(np.float32)).clone()
-    model=ObjNeRF(cfg["model"]).to(device)
+    model=NeRFModel(cfg["model"]).to(device)
     if world_size > 1:
         model.fine_nerf = DistributedDataParallel(model.fine_nerf, device_ids=[rank], output_device=rank)
         model.coarse_nerf = DistributedDataParallel(model.coarse_nerf, device_ids=[rank], output_device=rank)
@@ -38,6 +38,6 @@ if __name__ == '__main__':
     checkpoint = Checkpoint(out_dir, device=device, fine_nerf=fine_nerf_module,
                             coarse_nerf=coarse_nerf_module, optimizer=optimizer)
     checkpoint.load('model.pt')
-    trainer=ObjNeRFTrainer(model,optimizer,cfg,device,out_dir)
+    trainer=NeRFTrainer(model,optimizer,cfg,device,out_dir)
     trainer.visualize(demo_origins,demo_rays,chunk=1024)
 

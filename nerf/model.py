@@ -3,9 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import math
-from nerf.layers import NeRF, ObjEmbedding
+from nerf.layers import NeRF
 
-class ObjNeRF(nn.Module):
+class NeRFModel(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.coarse_nerf=NeRF(**cfg['nerf_kwargs'])
