@@ -1,7 +1,11 @@
 # Simple-NeRF
 
 This is a simple implement of NeRF, as presented in the paper ["NeRF: Representing Scenes as Neural Radiance Fields for View Synthesis"](https://www.matthewtancik.com/nerf) by Mildenhall et al., ECCV2020.  
-The original repository of the paper is ["here"](https://github.com/bmild/nerf) and this repository is based on ["a PyTorch implement of the repository"](https://github.com/yenchenlin/nerf-pytorch).
+The original repository of the paper is ["here"](https://github.com/bmild/nerf) and this repository is based on ["a PyTorch implement of the repository"](https://github.com/yenchenlin/nerf-pytorch).  
+
+## Features
+- This source code makes the original source work on multiple GPUs.
+- This works with only blender dataset not liff dataset etc.
 
 ## Setup
 
@@ -20,8 +24,15 @@ Look at a download procedure of the original repository.
 
 ### Training
 Specify the path of a config file at the head of train.py.  
+To train a model on a single GPU, simply run e.g.:
 ```
 python train.py
+```
+
+To train a model on multiple GPUs on a single machine, launch multiple processes via Torchrun, where $NUM_GPUS is the number of GPUs to use:
+
+```
+screen torchrun --standalone --nnodes 1 --nproc_per_node $NUM_GPUS train.py
 ```
 
 ### Visualizing demo
