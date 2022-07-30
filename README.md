@@ -32,7 +32,7 @@ python train.py
 To train a model on multiple GPUs on a single machine, launch multiple processes via Torchrun, where $NUM_GPUS is the number of GPUs to use:
 
 ```
-screen torchrun --standalone --nnodes 1 --nproc_per_node $NUM_GPUS train.py
+torchrun --standalone --nnodes 1 --nproc_per_node $NUM_GPUS train.py
 ```
 
 ### Visualizing demo
